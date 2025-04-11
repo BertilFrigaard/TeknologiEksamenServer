@@ -56,7 +56,7 @@ function generateAccessToken(userId, secret) {
     return jwt.sign(
         { userId },
         secret,
-        { expiresIn: "1m" }
+        { expiresIn: "15m" }
     )
 }
 

@@ -53,7 +53,8 @@ async function createUser(username, email, passwordHash) {
         const user = {
             username: username,
             email: email,
-            passwordHash: passwordHash
+            passwordHash: passwordHash,
+            games: []
         };
 
         const nonVerifiedUser = {
@@ -214,8 +215,181 @@ async function removeRefreshTokenByUserId(userId) {
 
 // ######### USERS #########
 
+// ######### GAMES #########
+
+async function generateJoinCode() {
+    try {
+        const db = client.db("main");
+        const games = db.collection("games");
+
+        const options = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        let code = "";
+        while (code.length < 6) {
+            code += options.charAt(Math.floor(Math.random() * options.length));
+        }
+
+        const selectedGame = await games.findOne({joinCode: code});
+        if (selectedGame != null) {
+            return generateJoinCode();
+        }
+
+        return code;
+    } catch (e) {
+        console.log("Error: " + e);
+        return null;
+    }
+}
+
+async function createGame(gameName, period, passwordHash = null) {
+    try {
+        const db = client.db("main");
+        const games = db.collection("games");
+
+        const code = await generateJoinCode();
+        if (code == null) {
+            console.log("Could not generate join code");
+            return null;
+        }
+
+        const gameObj = {
+            name: gameName,
+            players: [],
+            admin: null,
+            passwordHash: passwordHash,
+            joinCode: code,
+            createdAt: new Date(),
+            period: period
+        }
+
+        const res = await games.insertOne(gameObj);
+        if (res.acknowledged) {
+            return res.insertedId;
+        } else {
+            console.log("Could not create new game");
+            return null;
+        }
+    } catch (e) {
+        console.log("Error in creating game: " + e);
+        return null;
+    }
+}
+
+async function getGameById(id, projection = {}) {
+    try {
+        const db = client.db("main");
+        const games = db.collection("games");
+
+        const gameId = new ObjectId(id);
+
+        const selectedGame = await games.findOne({_id: gameId}, {projection: projection});
+
+        return selectedGame;
+    } catch (e) {
+        console.log("Error: " + e);
+        return null;
+    }
+}
+
+async function getGameByJoinCode(code, projection = {}) {
+    try {
+        const db = client.db("main");
+        const games = db.collection("games");
+
+        const selectedGame = await games.findOne({joinCode: code}, {projection: projection});
+
+        return selectedGame;
+    } catch (e) {
+        console.log("Error: " + e);
+        return null;
+    }
+}
+
+async function setGameAdmin(gameId, userId) {
+    try {
+        const db = client.db("main");
+        const games = db.collection("games");
+
+        const res = await games.updateOne(
+            { _id: new ObjectId(gameId) },
+            { $set: { admin: userId } }
+        );
+        if (res.acknowledged) {
+            return true;
+        } else {
+            console.log("Could not set game admin: " + gameId);
+            return false;
+        }
+    } catch (e) {
+        console.log("Error: " + e);
+        return false;
+    }
+}
+
+async function addUserToGame(gameId, userId) {
+    try {
+        const db = client.db("main");
+        const games = db.collection("games");
+        const users = db.collection("users");
+
+        // Get gameobject and playerlist
+        const gameObj = await games.findOne({_id: new ObjectId(gameId)});
+        if (gameObj == null) {
+            console.log("Game not found: " + gameId);
+            return false;
+        }
+
+        const gamePlayers = gameObj.players;
+        if (gamePlayers.includes(userId)) {
+            console.log("User already in game: " + userId);
+            return false;
+        }
+
+        //Get user object and gamelist
+        const userObj = await users.findOne({_id: new ObjectId(userId)});
+        if (userObj == null) {
+            console.log("User not found: " + userId);
+            return false;
+        }
+
+        const userGames = userObj.games;
+        if (userGames.includes(gameId)) {
+            console.log("Game already in user: " + gameId);
+            return false;
+        } 
+
+        // Add user to game
+        gamePlayers.push(userId);
+        const res = await games.updateOne(
+            { _id: new ObjectId(gameId) },
+            { $set: { players: gamePlayers } }
+        );
+        if (!res.acknowledged) {
+            console.log("Could not add user to game: " + gameId);
+            return false;
+        }  
+
+        // Add game to user
+        userGames.push(gameId);
+        const res2 = await users.updateOne(
+            { _id: new ObjectId(userId) },
+            { $set: { games: userGames } }
+        );
+        if (!res2.acknowledged) {
+            console.log("Could not add game to user: " + userId);
+            return false;
+        }
+
+        return true;
+
+    } catch (e) {
+        console.log("Error: " + e);
+        return false;
+    }
+}
+
 module.exports = {
     openConnection, closeConnection,
     createUser, verifyAccount, getUnverfiedUserByEmail, getUserByEmail,
-    storeRefreshToken, getRefreshToken, removeRefreshTokenByUserId
+    storeRefreshToken, getRefreshToken, removeRefreshTokenByUserId,
+    createGame, getGameById, getGameByJoinCode, setGameAdmin, addUserToGame
 }
