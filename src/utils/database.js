@@ -215,6 +215,22 @@ async function removeRefreshTokenByUserId(userId) {
 
 // ######### USERS #########
 
+async function getUserById(id, projection = {}) {
+    try {
+        const db = client.db("main");
+        const users = db.collection("users");
+
+        const userId = new ObjectId(id);
+
+        const selectedUser = await users.findOne({_id: userId}, {projection: projection});
+
+        return selectedUser;
+    } catch (e) {
+        console.log("Error: " + e);
+        return null;
+    }
+}
+
 // ######### GAMES #########
 
 async function generateJoinCode() {
@@ -271,6 +287,24 @@ async function createGame(gameName, period, passwordHash = null) {
     } catch (e) {
         console.log("Error in creating game: " + e);
         return null;
+    }
+}
+
+async function deleteGame(gameId) {
+    try {
+        const db = client.db("main");
+        const games = db.collection("games");
+
+        const res = await games.deleteOne({_id: new ObjectId(gameId)});
+        if (res.acknowledged) {
+            return true;
+        } else {
+            console.log("Could not delete game: " + gameId);
+            return false;
+        }
+    } catch (e) {
+        console.log("Error: " + e);
+        return false;
     }
 }
 
@@ -369,7 +403,7 @@ async function addUserToGame(gameId, userId) {
         }  
 
         // Add game to user
-        userGames.push(gameId);
+        userGames.push(gameId.toString());
         const res2 = await users.updateOne(
             { _id: new ObjectId(userId) },
             { $set: { games: userGames } }
@@ -387,9 +421,54 @@ async function addUserToGame(gameId, userId) {
     }
 }
 
+async function removeUserFromGame(gameId, userId) {
+    const gameObj = await getGameById(gameId);
+    if (gameObj == null) {
+        console.log("Game not found: " + gameId);
+        return false;
+    }
+
+    const userObj = await getUserById(userId);
+    if (userObj == null) {
+        console.log("User not found: " + userId);
+        return false;
+    }
+    
+    const db = client.db("main");
+    const games = db.collection("games");
+    const users = db.collection("users");
+
+    const gamePlayers = gameObj.players;
+    const userGames = userObj.games;
+
+    var change = false;
+
+    if (gamePlayers.includes(userId)) {
+        gamePlayers.splice(gamePlayers.indexOf(userId), 1);
+        await games.updateOne(
+            { _id: new ObjectId(gameId) },
+            { $set: { players: gamePlayers } }
+        );
+        change = true;
+    }
+
+    if (userGames.includes(gameId)) {
+        userGames.splice(userGames.indexOf(gameId), 1);
+        await users.updateOne(
+            { _id: new ObjectId(userId) },
+            { $set: { games: userGames } }
+        )
+        change = true;
+    }
+
+    return change;
+}
+
 module.exports = {
     openConnection, closeConnection,
     createUser, verifyAccount, getUnverfiedUserByEmail, getUserByEmail,
     storeRefreshToken, getRefreshToken, removeRefreshTokenByUserId,
-    createGame, getGameById, getGameByJoinCode, setGameAdmin, addUserToGame
+    getUserById,
+    createGame, deleteGame,
+    getGameById, getGameByJoinCode, setGameAdmin, addUserToGame, removeUserFromGame
 }

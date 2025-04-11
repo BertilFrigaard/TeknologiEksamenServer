@@ -80,8 +80,62 @@ const joinGame  = async (req, res) => {
     return res.status(200).json({ gameId: game._id }); // Game found
 }
 
+const leaveGame = async (req, res) => {
+    const { gameId } = req.body;
+    if (!gameId) {
+        return res.sendStatus(400); // Bad content
+    }
+
+    const userId = req.user; //From the authenticateAccessToken middleware
+
+    const game = await db.getGameById(gameId, { passwordHash: 0 });
+    if (!game) {
+        return res.sendStatus(404); // Not found
+    }
+
+    if (!game.players.includes(userId)) {
+        return res.sendStatus(403); // Forbidden, user not in game
+    }
+
+    if (game.admin == userId) {
+        return res.sendStatus(403); // Forbidden, user is admin
+    }
+
+    const success = await db.removeUserFromGame(gameId, userId);
+    if (!success) {
+        return res.sendStatus(409); // Internal server error
+    }
+
+    return res.sendStatus(200)
+}
+
+const deleteGame = async (req, res) => {
+    const { gameId } = req.body;
+    if (!gameId) {
+        return res.sendStatus(400);
+    }
+
+    const gameObj = await db.getGameById(gameId, { admin: 1, players: 1 });
+    if (!gameObj) {
+        return res.sendStatus(404); // Game not found
+    }
+    
+    if (gameObj.admin != req.user) {
+        return res.sendStatus(403); // Missing permission 
+    }
+
+    await gameObj.players.forEach(async (userId) => {
+        await db.removeUserFromGame(gameId, userId);
+    });
+
+    await db.deleteGame(gameId);
+    return res.sendStatus(200);
+}
+
 module.exports = {
     createGame,
     getGameById,
-    joinGame
+    joinGame,
+    leaveGame,
+    deleteGame
 };
