@@ -1,7 +1,6 @@
 const bcrypt = require("bcrypt");
 
 const db = require("../utils/database.js");
-const { ObjectId } = require("mongodb");
 
 const createGame = async (req, res) => {
     const { gameName, password } = req.body;
@@ -44,6 +43,12 @@ const getGameById = async (req, res) => {
     const game = await db.getGameById(gameId, { passwordHash: 0 });
     if (!game) {
         return res.sendStatus(404); // Not found
+    }
+
+    const userId = req.user;
+    const players = game.players;
+    if (!players.includes(userId)) {
+        return res.sendStatus(403);
     }
 
     return res.status(302).json(game); // Game found
