@@ -1,6 +1,7 @@
 const bcrypt = require("bcrypt");
 
 const db = require("../utils/database.js");
+const { ObjectId } = require("mongodb");
 
 const createGame = async (req, res) => {
     const { gameName, password } = req.body;
@@ -132,10 +133,41 @@ const deleteGame = async (req, res) => {
     return res.sendStatus(200);
 }
 
+const kickPlayer = async (req, res) =>  {
+    const { targetId, gameId } = req.body;
+    if (!targetId || !gameId) {
+        return res.sendStatus(400);
+    }
+
+    const userId = req.user;
+
+    if (targetId == userId) {
+        return res.sendStatus(403);
+    }
+
+    const gameObj = await db.getGameById(gameId, { admin: 1, players: 1 });
+    if (!gameObj) {
+        return res.sendStatus(404);
+    }
+
+    if (gameObj.admin != userId) {
+        return res.sendStatus(403)
+    }
+
+    const success = await db.removeUserFromGame(gameId, targetId);
+    if (success) {
+        return res.sendStatus(200);
+    } else {
+        return res.sendStatus(404);
+    }
+
+}
+
 module.exports = {
     createGame,
     getGameById,
     joinGame,
     leaveGame,
-    deleteGame
+    deleteGame,
+    kickPlayer
 };
