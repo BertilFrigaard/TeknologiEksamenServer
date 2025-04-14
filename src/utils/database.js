@@ -1,4 +1,5 @@
 const {MongoClient, ServerApiVersion, ObjectId} = require("mongodb");
+const { gameHasPlayer } = require("./gameUtils");
 
 const client = new MongoClient(process.env.MONGO_URI, {
     serverApi: {
@@ -256,7 +257,7 @@ async function generateJoinCode() {
     }
 }
 
-async function createGame(gameName, period, passwordHash = null) {
+async function createGame(gameName, period, budget, passwordHash = null) {
     try {
         const db = client.db("main");
         const games = db.collection("games");
@@ -274,7 +275,8 @@ async function createGame(gameName, period, passwordHash = null) {
             passwordHash: passwordHash,
             joinCode: code,
             createdAt: new Date(),
-            period: period
+            period: period,
+            budget: budget
         }
 
         const res = await games.insertOne(gameObj);
@@ -373,7 +375,8 @@ async function addUserToGame(gameId, userId) {
         }
 
         const gamePlayers = gameObj.players;
-        if (gamePlayers.includes(userId)) {
+        const exists = gamePlayers.some(p => p.id == userId);
+        if (exists) {
             console.log("User already in game: " + userId);
             return false;
         }
@@ -392,7 +395,10 @@ async function addUserToGame(gameId, userId) {
         } 
 
         // Add user to game
-        gamePlayers.push(userId);
+        gamePlayers.push({
+            id: userId,
+            entries: []
+        });
         const res = await games.updateOne(
             { _id: new ObjectId(gameId) },
             { $set: { players: gamePlayers } }
@@ -443,8 +449,9 @@ async function removeUserFromGame(gameId, userId) {
 
     var change = false;
 
-    if (gamePlayers.includes(userId)) {
-        gamePlayers.splice(gamePlayers.indexOf(userId), 1);
+    var index = gamePlayers.findIndex(p => p.id == userId);
+    if (index != -1) {
+        gamePlayers.splice(index, 1);
         await games.updateOne(
             { _id: new ObjectId(gameId) },
             { $set: { players: gamePlayers } }
@@ -464,11 +471,47 @@ async function removeUserFromGame(gameId, userId) {
     return change;
 }
 
+async function addEntryToGame(gameId, userId, amount) {
+    const gameObj = await getGameById(gameId);
+    if (gameObj == null) {
+        console.log("Game not found!");
+        return false;
+    }
+
+    if (!gameHasPlayer(gameObj, userId)) {
+        console.log("Player is not in game");
+        return false;
+    }
+
+    var players = gameObj.players;
+    const index = players.findIndex(p => p.id == userId);
+    players[index].entries.push({
+        date: new Date(),
+        amount: amount
+    });
+
+    try {
+        const db = client.db("main");
+        const games = db.collection("games");
+
+        const res = await games.updateOne(
+            { _id: new ObjectId(gameId) },
+            { $set: { players: players } }
+        );
+
+        return res.acknowledged;
+    } catch(e) {
+        console.log("ERROR: " + e);
+        return false;
+    }
+}
+
 module.exports = {
     openConnection, closeConnection,
     createUser, verifyAccount, getUnverfiedUserByEmail, getUserByEmail,
     storeRefreshToken, getRefreshToken, removeRefreshTokenByUserId,
     getUserById,
     createGame, deleteGame,
-    getGameById, getGameByJoinCode, setGameAdmin, addUserToGame, removeUserFromGame
+    getGameById, getGameByJoinCode, setGameAdmin, addUserToGame, removeUserFromGame,
+    addEntryToGame
 }

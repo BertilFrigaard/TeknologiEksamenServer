@@ -1,12 +1,16 @@
 const bcrypt = require("bcrypt");
-
 const db = require("../utils/database.js");
+const { gameHasPlayer } = require("../utils/gameUtils.js");
 
 const createGame = async (req, res) => {
-    const { gameName, password } = req.body;
-    if (!gameName) {
+    const { budget, gameName, password } = req.body;
+    if (!gameName || !budget) {
         return res.sendStatus(400); // Bad content
     } 
+
+    if (budget <= 0 || budget > process.env.BUDGET_MAX) {
+        return res.sendStatus(413);
+    }
     
     var passwordHash = null;
     if (password) {
@@ -14,7 +18,7 @@ const createGame = async (req, res) => {
     }
     const userId = req.user; //From the authenticateAccessToken middleware
 
-    const gameId = await db.createGame(gameName, 30 * 24 * 60, passwordHash); // temporary hardcoded expiration time of 30 days
+    const gameId = await db.createGame(gameName, 30 * 24 * 60, budget, passwordHash); // temporary hardcoded expiration time of 30 days
     if (!gameId) {
         return res.sendStatus(500); // Internal server error
     }
@@ -46,8 +50,7 @@ const getGameById = async (req, res) => {
     }
 
     const userId = req.user;
-    const players = game.players;
-    if (!players.includes(userId)) {
+    if (!gameHasPlayer(game, userId)) {
         return res.sendStatus(403);
     }
 
@@ -99,7 +102,7 @@ const leaveGame = async (req, res) => {
         return res.sendStatus(404); // Not found
     }
 
-    if (!game.players.includes(userId)) {
+    if (!gameHasPlayer(game, userId)) {
         return res.sendStatus(403); // Forbidden, user not in game
     }
 
@@ -130,9 +133,9 @@ const deleteGame = async (req, res) => {
         return res.sendStatus(403); // Missing permission 
     }
 
-    await gameObj.players.forEach(async (userId) => {
-        await db.removeUserFromGame(gameId, userId);
-    });
+    for (const p of gameObj.players) {
+        await db.removeUserFromGame(gameId, p.id);
+    }
 
     await db.deleteGame(gameId);
     return res.sendStatus(200);
@@ -168,11 +171,33 @@ const kickPlayer = async (req, res) =>  {
 
 }
 
+const addEntry = async (req, res) => {
+    const { gameId, amount } = req.body;
+    if (!gameId || !amount) {
+        return res.sendStatus(400);
+    }
+
+    if (amount <= 0 || amount > process.env.BUDGET_MAX) {
+        return res.sendStatus(413);
+    }
+
+    const userId = req.user;
+
+    const success = await db.addEntryToGame(gameId, userId, amount);
+
+    if (success) {
+        return res.sendStatus(200);
+    } else {
+        return res.sendStatus(403);
+    }
+}
+
 module.exports = {
     createGame,
     getGameById,
     joinGame,
     leaveGame,
     deleteGame,
-    kickPlayer
+    kickPlayer,
+    addEntry
 };

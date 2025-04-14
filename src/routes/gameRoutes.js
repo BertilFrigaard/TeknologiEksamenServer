@@ -10,5 +10,6 @@ router.post("/joinGame", debugRoute, authenticateAccessToken, gameController.joi
 router.delete("/leaveGame", debugRoute, authenticateAccessToken, gameController.leaveGame);
 router.delete("/deleteGame", debugRoute, authenticateAccessToken, gameController.deleteGame);
 router.post("/kick", debugRoute, authenticateAccessToken, gameController.kickPlayer);
+router.post("/addEntry", debugRoute, authenticateAccessToken, gameController.addEntry);
 
 module.exports = router;
