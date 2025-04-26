@@ -3,10 +3,18 @@ const db = require("../utils/database.js");
 const { gameHasPlayer } = require("../utils/gameUtils.js");
 
 const createGame = async (req, res) => {
-    const { budget, gameName, password } = req.body;
+    const { budget, gameName, password, period } = req.body;
     if (!gameName || !budget) {
         return res.sendStatus(400); // Bad content
     } 
+
+    if (!period) {
+        period == 30* 24 * 60 // Defaults to expiration time of 30 days
+    } else {
+        if (period <= 0 || period > process.env.PERIOD_MAX) {
+            return res.sendStatus(413);
+        }
+    }
 
     if (budget <= 0 || budget > process.env.BUDGET_MAX) {
         return res.sendStatus(413);
@@ -18,7 +26,7 @@ const createGame = async (req, res) => {
     }
     const userId = req.user; //From the authenticateAccessToken middleware
 
-    const gameId = await db.createGame(gameName, 30 * 24 * 60, budget, passwordHash); // temporary hardcoded expiration time of 30 days
+    const gameId = await db.createGame(gameName, period, budget, passwordHash); 
     if (!gameId) {
         return res.sendStatus(500); // Internal server error
     }
@@ -35,7 +43,7 @@ const createGame = async (req, res) => {
         return res.sendStatus(500); // Internal server error
     }
 
-    return res.status(201).json({ gameId }); // Created TODO: remove gameName and passwordLocked!!
+    return res.status(201).json({ gameId }); // Created
 }
 
 const getGameById = async (req, res) => {

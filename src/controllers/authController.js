@@ -23,7 +23,7 @@ const registerUser = async (req, res) => {
         };
 
         const options = {
-            expiresIn: "1h"
+            expiresIn: "24h"
         };
 
         const token = jwt.sign(data, process.env.JWT_SECRET_KEY, options);
