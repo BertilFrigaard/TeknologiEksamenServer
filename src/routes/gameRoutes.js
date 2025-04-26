@@ -7,8 +7,8 @@ const authenticateAccessToken = require("../middleware/authenticateAccessToken.j
 router.post("/createGame", debugRoute, authenticateAccessToken, gameController.createGame);
 router.get("/getGameById/:gameId", debugRoute, authenticateAccessToken, gameController.getGameById);
 router.post("/joinGame", debugRoute, authenticateAccessToken, gameController.joinGame);
-router.delete("/leaveGame", debugRoute, authenticateAccessToken, gameController.leaveGame);
-router.delete("/deleteGame", debugRoute, authenticateAccessToken, gameController.deleteGame);
+router.delete("/leaveGame/:gameId", debugRoute, authenticateAccessToken, gameController.leaveGame);
+router.delete("/deleteGame/:gameId", debugRoute, authenticateAccessToken, gameController.deleteGame);
 router.post("/kick", debugRoute, authenticateAccessToken, gameController.kickPlayer);
 router.post("/addEntry", debugRoute, authenticateAccessToken, gameController.addEntry);
 

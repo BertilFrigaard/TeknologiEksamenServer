@@ -98,7 +98,7 @@ const joinGame  = async (req, res) => {
 }
 
 const leaveGame = async (req, res) => {
-    const { gameId } = req.body;
+    const { gameId } = req.params;
     if (!gameId) {
         return res.sendStatus(400); // Bad content
     }
@@ -127,7 +127,7 @@ const leaveGame = async (req, res) => {
 }
 
 const deleteGame = async (req, res) => {
-    const { gameId } = req.body;
+    const { gameId } = req.params;
     if (!gameId) {
         return res.sendStatus(400);
     }
